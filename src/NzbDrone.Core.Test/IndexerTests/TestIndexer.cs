@@ -22,8 +22,8 @@ namespace NzbDrone.Core.Test.IndexerTests
         public Int32 _supportedPageSize;
         public override Int32 PageSize { get { return _supportedPageSize; } }
 
-        public TestIndexer(IHttpClient httpClient, IConfigService configService, IParsingService parsingService, Logger logger)
-            : base(httpClient, configService, parsingService, logger)
+        public TestIndexer(IIndexerStatusService indexerStatusService, IHttpClient httpClient, IConfigService configService, IParsingService parsingService, Logger logger)
+            : base(indexerStatusService, httpClient, configService, parsingService, logger)
         {
 
         }

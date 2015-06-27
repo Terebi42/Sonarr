@@ -22,8 +22,8 @@ namespace NzbDrone.Core.Indexers.TorrentRss
 
         private readonly ITorrentRssParserFactory _torrentRssParserFactory;
 
-        public TorrentRssIndexer(IHttpClient httpClient, IConfigService configService, IParsingService parsingService, ITorrentRssParserFactory torrentRssParserFactory, Logger logger)
-            : base(httpClient, configService, parsingService, logger)
+        public TorrentRssIndexer(ITorrentRssParserFactory torrentRssParserFactory, IIndexerStatusService indexerStatusService, IHttpClient httpClient, IConfigService configService, IParsingService parsingService, Logger logger)
+            : base(indexerStatusService, httpClient, configService, parsingService, logger)
         {
             _torrentRssParserFactory = torrentRssParserFactory;
         }

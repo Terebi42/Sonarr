@@ -21,6 +21,7 @@ namespace NzbDrone.Core.Indexers
     {
         protected const Int32 MaxNumResultsPerQuery = 1000;
 
+        protected readonly IIndexerStatusService _indexerStatusService;
         private readonly IHttpClient _httpClient;
 
         public override bool SupportsRss { get { return true; } }
@@ -33,9 +34,10 @@ namespace NzbDrone.Core.Indexers
         public abstract IIndexerRequestGenerator GetRequestGenerator();
         public abstract IParseIndexerResponse GetParser();
 
-        public HttpIndexerBase(IHttpClient httpClient, IConfigService configService, IParsingService parsingService, Logger logger)
+        public HttpIndexerBase(IIndexerStatusService indexerStatusService, IHttpClient httpClient, IConfigService configService, IParsingService parsingService, Logger logger)
             : base(configService, parsingService, logger)
         {
+            _indexerStatusService = indexerStatusService;
             _httpClient = httpClient;
         }
 
@@ -48,7 +50,7 @@ namespace NzbDrone.Core.Indexers
 
             var generator = GetRequestGenerator();
 
-            return FetchReleases(generator.GetRecentRequests());
+            return FetchReleases(generator.GetRecentRequests(), true);
         }
 
         public override IList<ReleaseInfo> Fetch(SingleEpisodeSearchCriteria searchCriteria)
@@ -111,7 +113,7 @@ namespace NzbDrone.Core.Indexers
             return FetchReleases(generator.GetSearchRequests(searchCriteria));
         }
 
-        protected virtual IList<ReleaseInfo> FetchReleases(IList<IEnumerable<IndexerRequest>> pageableRequests)
+        protected virtual IList<ReleaseInfo> FetchReleases(IList<IEnumerable<IndexerRequest>> pageableRequests, bool isRecent = false)
         {
             var releases = new List<ReleaseInfo>();
             var url = String.Empty;
@@ -120,6 +122,9 @@ namespace NzbDrone.Core.Indexers
 
             try
             {
+                var lastReleaseInfo = _indexerStatusService.GetLastRecentReleaseInfo(Definition.Id);
+                var fullyUpdated = true;
+
                 foreach (var pageableRequest in pageableRequests)
                 {
                     var pagedReleases = new List<ReleaseInfo>();
@@ -132,52 +137,95 @@ namespace NzbDrone.Core.Indexers
 
                         pagedReleases.AddRange(page);
 
-                        if (!IsFullPage(page) || pagedReleases.Count >= MaxNumResultsPerQuery)
+                        if (!IsFullPage(page))
                         {
                             break;
+                        }
+
+                        if (isRecent && lastReleaseInfo != null)
+                        {
+                            var oldestDate = page.Select(v => v.PublishDate).Min();
+                            if (oldestDate < lastReleaseInfo.PublishDate)
+                            {
+                                break;
+                            }
+
+                            if (pagedReleases.Count >= MaxNumResultsPerQuery)
+                            {
+                                if (oldestDate < DateTime.UtcNow - TimeSpan.FromHours(24))
+                                {
+                                    fullyUpdated = false;
+                                    break;
+                                }
+                            }
+                        }
+                        else
+                        {
+                            if (pagedReleases.Count >= MaxNumResultsPerQuery)
+                            {
+                                break;
+                            }
                         }
                     }
 
                     releases.AddRange(pagedReleases);
                 }
+
+                if (isRecent && !releases.Empty())
+                {
+                    // TODO: How to notify the rest of the system of a 'gap' (!fullyUpdated)
+                    lastReleaseInfo = releases.OrderByDescending(v => v.PublishDate).First();
+                    _indexerStatusService.UpdateLastRecentReleaseInfo(Definition.Id, lastReleaseInfo);
+                }
+
+                _indexerStatusService.ReportSuccess(Definition.Id);
             }
             catch (WebException webException)
             {
                 if (webException.Message.Contains("502") || webException.Message.Contains("503") ||
                     webException.Message.Contains("timed out"))
                 {
+                    _indexerStatusService.ReportFailure(Definition.Id);
                     _logger.Warn("{0} server is currently unavailable. {1} {2}", this, url, webException.Message);
                 }
                 else
                 {
+                    _indexerStatusService.ReportFailure(Definition.Id);
                     _logger.Warn("{0} {1} {2}", this, url, webException.Message);
                 }
             }
             catch (HttpException httpException)
             {
-                if ((int) httpException.Response.StatusCode == 429)
+                if ((int)httpException.Response.StatusCode == 429)
                 {
+                    _indexerStatusService.ReportFailure(Definition.Id, TimeSpan.FromHours(1));
                     _logger.Warn("API Request Limit reached for {0}", this);
                 }
-
-                _logger.Warn("{0} {1}", this, httpException.Message);
+                else
+                {
+                    _indexerStatusService.ReportFailure(Definition.Id);
+                    _logger.Warn("{0} {1}", this, httpException.Message);
+                }
             }
             catch (RequestLimitReachedException)
             {
-                // TODO: Backoff for x period.
+                _indexerStatusService.ReportFailure(Definition.Id, TimeSpan.FromHours(1));
                 _logger.Warn("API Request Limit reached for {0}", this);
             }
             catch (ApiKeyException)
             {
+                _indexerStatusService.ReportFailure(Definition.Id);
                 _logger.Warn("Invalid API Key for {0} {1}", this, url);
             }
             catch (IndexerException ex)
             {
+                _indexerStatusService.ReportFailure(Definition.Id);
                 var message = String.Format("{0} - {1}", ex.Message, url);
                 _logger.WarnException(message, ex);
             }
             catch (Exception feedEx)
             {
+                _indexerStatusService.ReportFailure(Definition.Id);
                 feedEx.Data.Add("FeedUrl", url);
                 _logger.ErrorException("An error occurred while processing feed. " + url, feedEx);
             }

@@ -45,8 +45,8 @@ namespace NzbDrone.Core.Indexers.Torznab
             }
         }
 
-        public Torznab(IHttpClient httpClient, IConfigService configService, IParsingService parsingService, Logger logger)
-            : base(httpClient, configService, parsingService, logger)
+        public Torznab(IIndexerStatusService indexerStatusService, IHttpClient httpClient, IConfigService configService, IParsingService parsingService, Logger logger)
+            : base(indexerStatusService, httpClient, configService, parsingService, logger)
         {
 
         }

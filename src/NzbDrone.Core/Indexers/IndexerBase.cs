@@ -77,6 +77,7 @@ namespace NzbDrone.Core.Indexers
 
             result.ForEach(c =>
             {
+                c.IndexerId = Definition.Id;
                 c.Indexer = Definition.Name;
                 c.DownloadProtocol = Protocol;
             });

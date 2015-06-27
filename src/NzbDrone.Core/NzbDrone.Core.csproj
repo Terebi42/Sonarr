@@ -493,6 +493,8 @@
     <Compile Include="Indexers\IndexerRequest.cs" />
     <Compile Include="Indexers\IndexerResponse.cs" />
     <Compile Include="Indexers\IndexerSettingUpdatedEvent.cs" />
+    <Compile Include="Indexers\IndexerStatus.cs" />
+    <Compile Include="Indexers\IndexerStatusService.cs" />
     <Compile Include="Indexers\IProcessIndexerResponse.cs" />
     <Compile Include="Indexers\IPTorrents\IPTorrentsRequestGenerator.cs" />
     <Compile Include="Indexers\IPTorrents\IPTorrents.cs" />

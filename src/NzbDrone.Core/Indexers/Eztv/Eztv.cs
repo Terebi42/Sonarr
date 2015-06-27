@@ -17,8 +17,8 @@ namespace NzbDrone.Core.Indexers.Eztv
 
         public override DownloadProtocol Protocol { get { return DownloadProtocol.Torrent; } }
 
-        public Eztv(IHttpClient httpClient, IConfigService configService, IParsingService parsingService, Logger logger)
-            : base(httpClient, configService, parsingService, logger)
+        public Eztv(IIndexerStatusService indexerStatusService, IHttpClient httpClient, IConfigService configService, IParsingService parsingService, Logger logger)
+            : base(indexerStatusService, httpClient, configService, parsingService, logger)
         {
 
         }
